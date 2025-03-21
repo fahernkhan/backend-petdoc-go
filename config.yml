@@ -1,0 +1,19 @@
+app:
+  name: "petdoc"
+  port: "8080"
+  secret_key: "iniSangatSecret"
+  token_type: "Bearer"
+  expire_time: 6000
+
+db:
+  host: "localhost"
+  port: "5432"
+  username: "postgres"
+  password: "password"
+  database: "petdoc"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 25
+  max_lifetime: 60
+  max_idle_time: 60
+

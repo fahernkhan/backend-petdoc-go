@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS consultations;
+DROP TABLE IF EXISTS doctors;
+DROP TABLE IF EXISTS users;
