@@ -1,47 +1,56 @@
 package jwt
 
 import (
-	"fmt"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func GenerateToken(id string, role string, secret string) (tokenString string, err error) {
-	claims := jwt.MapClaims{
-		"id":   id,
-		"role": role,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	tokenString, err = token.SignedString([]byte(secret))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+type JWT interface {
+	GenerateToken(claims Claims, expiry time.Duration) (string, time.Time, error)
+	ValidateToken(tokenString string) (*Claims, error)
 }
 
-func ValidateToken(tokenString string, secret string) (id string, role string, err error) {
-	tokens, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
+type Claims struct {
+	UserID int    `json:"user_id"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
+	jwt.RegisteredClaims
+}
 
-		return []byte(secret), nil
+type tokenService struct {
+	secret string
+}
+
+func newTokenService(secret string) JWT {
+	return &tokenService{secret: secret}
+}
+
+func (t *tokenService) GenerateToken(c Claims, expiry time.Duration) (string, time.Time, error) {
+	expirationTime := time.Now().Add(expiry)
+	c.RegisteredClaims = jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
+	tokenString, err := token.SignedString([]byte(t.secret))
+
+	return tokenString, expirationTime, err
+}
+
+func (t *tokenService) ValidateToken(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(t.secret), nil
 	})
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	claims, ok := tokens.Claims.(jwt.MapClaims)
-	if ok && tokens.Valid {
-		id = fmt.Sprintf("%v", claims["id"])
-		role = fmt.Sprintf("%v", claims["role"])
-		return
+	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		return claims, nil
 	}
 
-	err = fmt.Errorf("unable to extract claims")
-	return
+	return nil, jwt.ErrInvalidKeyType
 }
