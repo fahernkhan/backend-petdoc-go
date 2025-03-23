@@ -22,7 +22,7 @@ type tokenService struct {
 	secret string
 }
 
-func newTokenService(secret string) JWT {
+func NewTokenService(secret string) JWT {
 	return &tokenService{secret: secret}
 }
 

@@ -5,9 +5,11 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"petdoc/apps/auth/login"
 	"petdoc/apps/auth/register"
 	"petdoc/internal/config"
 	"petdoc/internal/infrastructure/database"
+	"petdoc/internal/infrastructure/utils/jwt"
 	"runtime"
 	"time"
 
@@ -59,8 +61,16 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Inisialisasi JWT service
+	jwtService := jwt.NewTokenService(cfg.App.SecretKey)
+
+	// Ambil token expiry dari konfigurasi
+	tokenExpiry := time.Duration(cfg.App.ExpireTime) * time.Second
+
 	// Inisialisasi modul register (autentikasi)
 	register.InitModule(router, db)
+	// Inisialisasi modul login (autentikasi)
+	login.InitModule(router, db, jwtService, tokenExpiry)
 
 	// Start server dengan port dari konfigurasi
 	appPort := config.GetConfig().App.Port
