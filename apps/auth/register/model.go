@@ -5,8 +5,8 @@ import "time"
 // RegisterRequest digunakan untuk menerima data registrasi pengguna dari request JSON
 type RegisterRequest struct {
 	FullName    string `json:"full_name"`
-	Email       string `json:"email"`
-	Password    string `json:"password"`
+	Email       string `json:"email" binding:"required,email"`
+	Password    string `json:"password" binding:"required,min=8"`
 	Gender      string `json:"gender"`
 	Username    string `json:"username" binding:"required"`
 	DateOfBirth string `json:"date_of_birth" time_format:"2024-02-24"`
