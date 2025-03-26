@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 type UserRepository interface {
@@ -29,7 +30,7 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 			date_of_birth, 
 			role
 		FROM users 
-		ORDER BY id DESC 
+		ORDER BY id ASC 
 		LIMIT $1 OFFSET $2
 	`
 
@@ -42,6 +43,7 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 	var users []UserResponse
 	for rows.Next() {
 		var u UserResponse
+		var dateOfBirth time.Time // Tambahkan variabel untuk menangkap tanggal dari database
 
 		err := rows.Scan(
 			&u.ID,
@@ -49,12 +51,16 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 			&u.Email,
 			&u.Gender,
 			&u.Username,
-			&u.DateOfBirth,
+			&dateOfBirth, // Ambil sebagai time.Time
 			&u.Role,
 		)
 		if err != nil {
 			return nil, &DatabaseError{Operation: "scan user", Err: err}
 		}
+
+		// Ubah format date_of_birth sebelum dimasukkan ke response
+		u.DateOfBirth = dateOfBirth.Format("2006-01-02")
+
 		users = append(users, u)
 	}
 	return users, nil
