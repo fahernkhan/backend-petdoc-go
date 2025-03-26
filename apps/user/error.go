@@ -24,5 +24,8 @@ type ValidationError struct {
 }
 
 func (e *ValidationError) Error() string {
-	return "validation failed for field '" + e.Field + "'"
+	if e.Field == "" {
+		return "validation error: " + e.Message
+	}
+	return "validation failed for field '" + e.Field + "': " + e.Message
 }

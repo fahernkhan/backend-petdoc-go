@@ -8,6 +8,7 @@ import (
 	"petdoc/apps/auth/login"
 	"petdoc/apps/auth/register"
 	"petdoc/apps/doctor"
+	"petdoc/apps/user"
 	"petdoc/internal/config"
 	"petdoc/internal/infrastructure/database"
 	"petdoc/internal/infrastructure/utils/jwt"
@@ -74,6 +75,8 @@ func main() {
 	login.InitModule(router, db, jwtService, tokenExpiry)
 	// Panggil InitRoutes dengan tokenService(doctor)
 	doctor.InitRoutes(router, db, jwtService)
+	// Inisialisasi modul user
+	user.InitUserModule(router, db)
 
 	// Start server dengan port dari konfigurasi
 	appPort := config.GetConfig().App.Port
