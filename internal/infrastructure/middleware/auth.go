@@ -48,6 +48,7 @@ func AuthMiddleware(tokenService jwt.JWT) gin.HandlerFunc {
 }
 
 // AdminOnly middleware untuk membatasi akses ke admin saja
+// AdminOnly middleware untuk membatasi akses ke admin saja
 func AdminOnly() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("user_role")
@@ -59,13 +60,25 @@ func AdminOnly() gin.HandlerFunc {
 			return
 		}
 
-		if role != "admin" {
+		// Pastikan role bertipe string
+		roleStr, ok := role.(string)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "Invalid role format",
+			})
+			return
+		}
+
+		// Handle case-insensitive role check
+		if strings.ToLower(roleStr) != "admin" {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"success": false,
 				"error":   "Admin access required",
 			})
 			return
 		}
+
 		c.Next()
 	}
 }

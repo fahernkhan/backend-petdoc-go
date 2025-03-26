@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"net/http"
+	"petdoc/internal/infrastructure/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -26,18 +27,23 @@ func NewHandler(service Service) *Handler {
 func (h *Handler) CreateDoctor(c *gin.Context) {
 	var req DoctorRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// Handle error binding
+		response.Error(c, http.StatusBadRequest, ErrInvalidDoctorData, gin.H{
+			"details": err.Error(),
+		})
 		return
 	}
 
 	doctor, err := h.service.CreateDoctor(c.Request.Context(), req)
 	if err != nil {
-		response := MapError(err)
-		c.JSON(response.Code, response)
+		errResp := MapError(err)
+		response.Error(c, errResp.Code, err, gin.H{
+			"details": errResp.Details,
+		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, doctor)
+	response.Success(c, http.StatusCreated, doctor)
 }
 
 // @Summary Get all doctors with pagination

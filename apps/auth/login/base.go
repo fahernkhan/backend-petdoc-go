@@ -17,7 +17,7 @@ func InitModule(router *gin.Engine, db *sql.DB, jwt jwt.JWT, tokenExp time.Durat
 	service := NewService(repo, jwt, tokenExp)
 	handler := NewHandler(service)
 
-	authRouter := router.Group("/v1/auth")
+	authRouter := router.Group("api/v1/auth")
 	{
 		authRouter.POST("/login", handler.Login)
 	}

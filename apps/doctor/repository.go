@@ -5,11 +5,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
 type Repository interface {
-	Create(ctx context.Context, doctor *DoctorRequest) (int, error)
+	BeginTx(ctx context.Context) (*sql.Tx, error)
+	UpdateUserRole(ctx context.Context, tx *sql.Tx, userID int, newRole string) error
+	GetUserRole(ctx context.Context, tx *sql.Tx, userID int) (string, error)
+	Create(ctx context.Context, tx *sql.Tx, d *DoctorRequest) (int, error)
+	GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int) (DoctorResponse, error)
 	GetByID(ctx context.Context, id int) (DoctorResponse, error)
 	GetAll(ctx context.Context, page, limit int) ([]DoctorResponse, int, error)
 	Update(ctx context.Context, id int, doctor *DoctorRequest) error
@@ -24,17 +29,58 @@ func NewRepository(db *sql.DB) Repository {
 	return &repo{db: db}
 }
 
-func (r *repo) Create(ctx context.Context, d *DoctorRequest) (int, error) {
+func (r *repo) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return r.db.BeginTx(ctx, nil)
+}
+
+// Di repository.go - perbaiki error handling
+func (r *repo) UpdateUserRole(ctx context.Context, tx *sql.Tx, userID int, newRole string) error {
+	result, err := tx.ExecContext(ctx,
+		`UPDATE users SET role = $1 WHERE id = $2`,
+		newRole,
+		userID,
+	)
+
+	if err != nil {
+		// Handle constraint violation
+		if strings.Contains(err.Error(), "unique constraint") {
+			return fmt.Errorf("%w: %v", ErrDuplicateEntry, err)
+		}
+		return fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+func (r *repo) GetUserRole(ctx context.Context, tx *sql.Tx, userID int) (string, error) {
+	query := `SELECT role FROM users WHERE id = $1`
+	var role string
+	err := tx.QueryRowContext(ctx, query, userID).Scan(&role)
+	return role, err
+}
+
+// Tambahkan parameter tx ke semua method
+func (r *repo) Create(ctx context.Context, tx *sql.Tx, d *DoctorRequest) (int, error) {
 	workingDays, _ := json.Marshal(d.WorkingDays)
 	workingHours, _ := json.Marshal(map[string]string{
 		"start": d.WorkingHoursStart,
 		"end":   d.WorkingHoursEnd,
 	})
 
-	query := `INSERT INTO doctors (...) VALUES (...) RETURNING id`
+	query := `INSERT INTO doctors (
+        user_id, full_name, last_education, specialist_at, 
+        profile_image, birth_date, hospital_name, years_of_experience,
+        price_per_hour, gmeet_link, working_days, working_hours
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    RETURNING id`
 
 	var id int
-	err := r.db.QueryRowContext(ctx, query,
+	err := tx.QueryRowContext(ctx, query,
 		d.UserID,
 		d.FullName,
 		d.LastEducation,
@@ -53,6 +99,54 @@ func (r *repo) Create(ctx context.Context, d *DoctorRequest) (int, error) {
 		return 0, fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
 	}
 	return id, nil
+}
+
+// Implementasi method lainnya dengan pola yang sama
+// GetByID implementation
+func (r *repo) GetByIDWithTx(ctx context.Context, tx *sql.Tx, id int) (DoctorResponse, error) {
+	query := `
+    SELECT id, user_id, full_name, last_education, specialist_at, profile_image, 
+           birth_date, hospital_name, years_of_experience, price_per_hour, 
+           gmeet_link, working_days, working_hours, created_at, updated_at 
+    FROM doctors 
+    WHERE id = $1`
+
+	var d DoctorResponse
+	var workingDays []byte
+	var workingHours []byte
+	var birthDate time.Time
+
+	err := tx.QueryRowContext(ctx, query, id).Scan(
+		&d.ID,
+		&d.UserID,
+		&d.FullName,
+		&d.LastEducation,
+		&d.SpecialistAt,
+		&d.ProfileImage,
+		&birthDate,
+		&d.HospitalName,
+		&d.YearsOfExperience,
+		&d.PricePerHour,
+		&d.GmeetLink,
+		&workingDays,
+		&workingHours,
+		&d.CreatedAt,
+		&d.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return DoctorResponse{}, ErrDoctorNotFound
+		}
+		return DoctorResponse{}, fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
+	}
+
+	// Parse JSON fields
+	json.Unmarshal(workingDays, &d.WorkingDays)
+	json.Unmarshal(workingHours, &d.WorkingHours)
+	d.BirthDate = birthDate.Format("2006-01-02")
+
+	return d, nil
 }
 
 // Implementasi method lainnya dengan pola yang sama

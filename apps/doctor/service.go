@@ -2,6 +2,9 @@ package doctor
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 )
@@ -27,24 +30,63 @@ func NewService(repo Repository) Service {
 }
 
 func (s *service) CreateDoctor(ctx context.Context, req DoctorRequest) (DoctorResponse, error) {
-	if err := validateWorkingHours(req); err != nil {
-		return DoctorResponse{}, err
-	}
-
-	// Validasi hari kerja(jika diperlukan)
-	// if err := validateWorkingDays(req.WorkingDays); err != nil {
-	// 	return DoctorResponse{}, err
-	// }
-
-	id, err := s.repo.Create(ctx, &req)
+	tx, err := s.repo.BeginTx(ctx)
 	if err != nil {
-		s.logger.Error("Failed to create doctor", "error", err)
-		return DoctorResponse{}, err
+		return DoctorResponse{}, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Validasi target user
+	targetUserRole, err := s.repo.GetUserRole(ctx, tx, req.UserID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return DoctorResponse{}, ErrUserNotFound
+		}
+		return DoctorResponse{}, fmt.Errorf("failed to get user role: %w", err)
 	}
 
-	return s.GetDoctor(ctx, id)
+	if targetUserRole != "user" {
+		return DoctorResponse{}, ErrUserNotAllowed
+	}
+
+	// Update role
+	if err := s.repo.UpdateUserRole(ctx, tx, req.UserID, "doctor"); err != nil {
+		return DoctorResponse{}, fmt.Errorf("failed to update role: %w", err)
+	}
+
+	// Validasi input
+	if err := validateWorkingHours(req); err != nil {
+		return DoctorResponse{}, fmt.Errorf("invalid working hours: %w", err)
+	}
+
+	if err := validateWorkingDays(req.WorkingDays); err != nil {
+		return DoctorResponse{}, fmt.Errorf("invalid working days: %w", err)
+	}
+
+	// Create doctor
+	id, err := s.repo.Create(ctx, tx, &req)
+	if err != nil {
+		if errors.Is(err, ErrDuplicateEntry) {
+			return DoctorResponse{}, fmt.Errorf("doctor already exists: %w", err)
+		}
+		return DoctorResponse{}, fmt.Errorf("failed to create doctor: %w", err)
+	}
+
+	// Commit transaksi
+	if err := tx.Commit(); err != nil {
+		return DoctorResponse{}, fmt.Errorf("commit failed: %w", err)
+	}
+
+	// Get data dengan transaction baru
+	newDoctor, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return DoctorResponse{}, fmt.Errorf("failed to fetch new doctor: %w", err)
+	}
+
+	return newDoctor, nil
 }
 
+// validateWorkingHours
 func validateWorkingHours(req DoctorRequest) error {
 	start, err := time.Parse("15:04", req.WorkingHoursStart)
 	if err != nil {
@@ -60,6 +102,21 @@ func validateWorkingHours(req DoctorRequest) error {
 		return ErrInvalidWorkingHours
 	}
 
+	return nil
+}
+
+// validateWorkingDays
+func validateWorkingDays(days []string) error {
+	validDays := map[string]bool{
+		"Senin": true, "Selasa": true, "Rabu": true,
+		"Kamis": true, "Jumat": true, "Sabtu": true, "Minggu": true,
+	}
+
+	for _, day := range days {
+		if !validDays[day] {
+			return ErrInvalidWorkingDays
+		}
+	}
 	return nil
 }
 

@@ -14,7 +14,7 @@ func InitRoutes(router *gin.Engine, db *sql.DB, tokenService jwt.JWT) {
 	service := NewService(repo)
 	handler := NewHandler(service)
 
-	doctorGroup := router.Group("/v1/doctors")
+	doctorGroup := router.Group("api/v1/doctors")
 	doctorGroup.Use(middleware.AuthMiddleware(tokenService)) // Middleware untuk semua endpoint dokter
 
 	{

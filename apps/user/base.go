@@ -17,7 +17,7 @@ func InitUserModule(router *gin.Engine, db *sql.DB) {
 	handler := NewUserHandler(service)
 
 	// Konfigurasi routing dengan middleware
-	adminRoutes := router.Group("/api/v1/users")
+	adminRoutes := router.Group("api/v1/users")
 	// adminRoutes.Use(
 	// 	middleware.JWTAuth(),        // JWT Authentication
 	// 	middleware.AdminOnly(),      // Hanya admin yang bisa akses

@@ -15,6 +15,8 @@ var (
 	ErrInvalidWorkingHours = errors.New("invalid working hours format")
 	ErrFailedUpdateRole    = errors.New("failed to update user role")
 	ErrUserNotAllowed      = errors.New("user is not allowed to become doctor")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrDuplicateEntry      = errors.New("duplicate entry")
 )
 
 type ErrorResponse struct {
@@ -29,17 +31,35 @@ func (e ErrorResponse) Error() string {
 
 func MapError(err error) ErrorResponse {
 	switch {
-	case errors.Is(err, ErrDoctorNotFound):
-		return ErrorResponse{Code: http.StatusNotFound, Message: "Doctor not found"}
-	case errors.Is(err, ErrInvalidDoctorData):
-		return ErrorResponse{Code: http.StatusBadRequest, Message: "Invalid doctor data"}
-	case errors.Is(err, ErrInvalidWorkingHours):
-		return ErrorResponse{Code: http.StatusBadRequest, Message: "Invalid working hours"}
-	case errors.Is(err, ErrInvalidWorkingDays):
-		return ErrorResponse{Code: http.StatusBadRequest, Message: "Invalid working days"}
+	case errors.Is(err, ErrUserNotFound):
+		return ErrorResponse{
+			Code:    http.StatusNotFound,
+			Message: "User not found",
+			Details: "The specified user does not exist",
+		}
+	case errors.Is(err, ErrUserNotAllowed):
+		return ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid role transition",
+			Details: "User must have 'user' role to become doctor",
+		}
+	case errors.Is(err, ErrDuplicateEntry):
+		return ErrorResponse{
+			Code:    http.StatusConflict,
+			Message: "Duplicate entry",
+			Details: "Doctor already exists for this user",
+		}
 	case errors.Is(err, ErrDatabaseOperation):
-		return ErrorResponse{Code: http.StatusInternalServerError, Message: "Database error"}
+		return ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Database error",
+			Details: "Unexpected database operation failure",
+		}
 	default:
-		return ErrorResponse{Code: http.StatusInternalServerError, Message: "Internal server error"}
+		return ErrorResponse{
+			Code:    http.StatusInternalServerError,
+			Message: "Internal server error",
+			Details: "Unexpected error occurred",
+		}
 	}
 }

@@ -23,7 +23,7 @@ func InitModule(router *gin.Engine, db *sql.DB) {
 	handler := NewHandler(svc)
 
 	// Membuat route group "/v1/auth" untuk mengelompokkan endpoint yang berkaitan dengan autentikasi
-	authRouter := router.Group("/v1/auth")
+	authRouter := router.Group("api/v1/auth")
 	{
 		// Menambahkan endpoint POST /register untuk proses registrasi
 		authRouter.POST("/register", handler.Register)
