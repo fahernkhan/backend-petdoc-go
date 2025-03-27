@@ -7,9 +7,11 @@ import (
 	"os"
 	"petdoc/apps/auth/login"
 	"petdoc/apps/auth/register"
+	"petdoc/apps/consultation"
 	"petdoc/apps/doctor"
 	"petdoc/apps/user"
 	"petdoc/internal/config"
+	"petdoc/internal/infrastructure/cloudinary"
 	"petdoc/internal/infrastructure/database"
 	"petdoc/internal/infrastructure/utils/jwt"
 	"runtime"
@@ -17,9 +19,16 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+
+	// Load environment variables dari .env
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 
 	// Gunakan semua core CPU yang tersedia untuk multi-threading
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -31,12 +40,13 @@ func main() {
 	slog.SetDefault(slog.New(logHandler))
 
 	// Load konfigurasi dari file YAML
-	err := config.LoadConfig("./config.yml")
+	err = config.LoadConfig("./config.yml")
 	if err != nil {
 		log.Fatalf("Gagal membaca konfigurasi: %v", err)
 		panic(err)
 	}
 	fmt.Println("Berhasil Load Config")
+	slog.Info("Konfigurasi berhasil dimuat")
 
 	// Ambil konfigurasi yang sudah dimuat
 	cfg := config.GetConfig()
@@ -49,6 +59,19 @@ func main() {
 	}
 	defer db.Close()
 	slog.Info("Connected to database successfully")
+	slog.Info("Terhubung ke database")
+
+	// Inisialisasi Cloudinary
+	cloudinaryService, err := cloudinary.NewService(
+		os.Getenv("CLOUDINARY_CLOUD_NAME"),
+		os.Getenv("CLOUDINARY_API_KEY"),
+		os.Getenv("CLOUDINARY_API_SECRET"),
+	)
+	if err != nil {
+		slog.Error("Gagal inisialisasi Cloudinary", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("Cloudinary berhasil diinisialisasi")
 
 	// Inisialisasi router Gin
 	router := gin.Default()
@@ -77,6 +100,9 @@ func main() {
 	doctor.InitRoutes(router, db, jwtService)
 	// Inisialisasi modul user
 	user.InitUserModule(router, db)
+
+	// Inisialisasi modul konsultasi dengan middleware auth
+	consultation.InitRoutes(router, db, cloudinaryService, jwtService) // Tambahkan ini
 
 	// Start server dengan port dari konfigurasi
 	appPort := config.GetConfig().App.Port

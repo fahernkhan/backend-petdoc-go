@@ -17,3 +17,7 @@ db:
   max_lifetime: 60
   max_idle_time: 60
 
+cloudinary:  # Tambahkan section ini
+  cloud_name: ${CLOUDINARY_CLOUD_NAME}
+  api_key: ${CLOUDINARY_API_KEY}
+  api_secret: ${CLOUDINARY_API_SECRET}

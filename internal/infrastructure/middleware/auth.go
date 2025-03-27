@@ -82,3 +82,21 @@ func AdminOnly() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// ValidateUser memeriksa apakah user memiliki akses berdasarkan user_id dari token JWT
+func ValidateUser(c *gin.Context, userID int) bool {
+	// Ambil user_id dari JWT yang sudah diset di context
+	tokenUserID, exists := c.Get("user_id")
+	if !exists {
+		return false
+	}
+
+	// Konversi tokenUserID ke tipe int
+	tokenUserIDInt, ok := tokenUserID.(int)
+	if !ok {
+		return false
+	}
+
+	// Validasi apakah user_id dari request sama dengan user_id dari token JWT
+	return tokenUserIDInt == userID
+}
