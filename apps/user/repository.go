@@ -7,8 +7,8 @@ import (
 )
 
 type UserRepository interface {
-	GetAllUsers(ctx context.Context, offset, limit int) ([]UserResponse, error)
-	CountAllUsers(ctx context.Context) (int, error)
+	GetAllUsers(ctx context.Context, offset, limit int, filter string) ([]UserResponse, error)
+	CountAllUsers(ctx context.Context, filter string) (int, error)
 }
 
 type userRepository struct {
@@ -19,22 +19,29 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]UserResponse, error) {
-	query := `
-		SELECT 
-			id, 
-			full_name, 
-			email,
-			gender,
-			username,
-			date_of_birth, 
-			role
-		FROM users 
-		ORDER BY id ASC 
-		LIMIT $1 OFFSET $2
-	`
+func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int, filter string) ([]UserResponse, error) {
+	baseQuery := `
+        SELECT 
+            id, 
+            full_name, 
+            email,
+            gender,
+            username,
+            date_of_birth, 
+            role
+        FROM users`
 
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	args := []interface{}{limit, offset}
+	whereClause := ""
+
+	if filter != "" {
+		whereClause = " WHERE (full_name ILIKE $3 OR email ILIKE $3 OR username ILIKE $3)"
+		args = append(args, "%"+filter+"%")
+	}
+
+	query := baseQuery + whereClause + " ORDER BY id ASC LIMIT $1 OFFSET $2"
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, &DatabaseError{Operation: "query users", Err: err}
 	}
@@ -43,7 +50,7 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 	var users []UserResponse
 	for rows.Next() {
 		var u UserResponse
-		var dateOfBirth time.Time // Tambahkan variabel untuk menangkap tanggal dari database
+		var dateOfBirth time.Time
 
 		err := rows.Scan(
 			&u.ID,
@@ -51,28 +58,31 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int) ([]
 			&u.Email,
 			&u.Gender,
 			&u.Username,
-			&dateOfBirth, // Ambil sebagai time.Time
+			&dateOfBirth,
 			&u.Role,
 		)
 		if err != nil {
 			return nil, &DatabaseError{Operation: "scan user", Err: err}
 		}
 
-		// Ubah format date_of_birth sebelum dimasukkan ke response
 		u.DateOfBirth = dateOfBirth.Format("2006-01-02")
-
 		users = append(users, u)
 	}
 	return users, nil
 }
 
-func (r *userRepository) CountAllUsers(ctx context.Context) (int, error) {
-	const query = `SELECT COUNT(*) FROM users`
+func (r *userRepository) CountAllUsers(ctx context.Context, filter string) (int, error) {
+	baseQuery := `SELECT COUNT(*) FROM users`
+	args := []interface{}{}
 
-	var count int
-	if err := r.db.QueryRowContext(ctx, query).Scan(&count); err != nil {
-		return 0, &DatabaseError{Operation: "count users", Err: err}
+	if filter != "" {
+		baseQuery += " WHERE (full_name ILIKE $1 OR email ILIKE $1 OR username ILIKE $1)"
+		args = append(args, "%"+filter+"%")
 	}
 
+	var count int
+	if err := r.db.QueryRowContext(ctx, baseQuery, args...).Scan(&count); err != nil {
+		return 0, &DatabaseError{Operation: "count users", Err: err}
+	}
 	return count, nil
 }

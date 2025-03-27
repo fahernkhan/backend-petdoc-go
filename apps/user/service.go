@@ -25,6 +25,14 @@ func NewUserService(repo UserRepository) UserService {
 
 // GetPaginatedUsers mengambil daftar pengguna dengan fitur pagination
 func (s *userService) GetPaginatedUsers(ctx context.Context, req PaginationRequest) (*PaginatedResponse, error) {
+	// Set default values
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 10
+	}
+
 	// Validasi parameter pagination
 	if req.Page < 1 {
 		return nil, &ValidationError{Field: "Page", Message: "must be at least 1"}
@@ -44,7 +52,7 @@ func (s *userService) GetPaginatedUsers(ctx context.Context, req PaginationReque
 	// Goroutine untuk mengambil data pengguna dari database
 	go func() {
 		slog.Info("Fetching users from database", "offset", offset, "limit", req.PageSize)
-		users, err := s.repo.GetAllUsers(ctx, offset, req.PageSize)
+		users, err := s.repo.GetAllUsers(ctx, offset, req.PageSize, req.Filter)
 		errChan <- err    // Kirim error ke channel jika ada
 		dataChan <- users // Kirim data ke channel jika berhasil
 	}()
@@ -52,7 +60,7 @@ func (s *userService) GetPaginatedUsers(ctx context.Context, req PaginationReque
 	// Goroutine untuk menghitung total pengguna di database
 	go func() {
 		slog.Info("Counting total users in database")
-		count, err := s.repo.CountAllUsers(ctx)
+		count, err := s.repo.CountAllUsers(ctx, req.Filter)
 		errChan <- err     // Kirim error ke channel jika ada
 		countChan <- count // Kirim jumlah total pengguna
 	}()

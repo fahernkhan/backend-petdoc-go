@@ -11,8 +11,9 @@ type UserResponse struct {
 }
 
 type PaginationRequest struct {
-	Page     int `form:"page" binding:"omitempty,min=1"`
-	PageSize int `form:"pageSize" binding:"omitempty,min=1,max=100"`
+	Page     int    `form:"page" binding:"omitempty,min=1"`
+	PageSize int    `form:"pageSize" binding:"omitempty,min=1,max=100"`
+	Filter   string `form:"filter"`
 }
 
 type PaginatedResponse struct {
