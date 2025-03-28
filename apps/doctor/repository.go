@@ -37,7 +37,7 @@ func (r *repo) BeginTx(ctx context.Context) (*sql.Tx, error) {
 // Di repository.go - perbaiki error handling
 func (r *repo) UpdateUserRole(ctx context.Context, tx *sql.Tx, userID int, newRole string) error {
 	result, err := tx.ExecContext(ctx,
-		`UPDATE users SET role = $1 WHERE id = $2`,
+		`UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`, // <-- Tambahkan updated
 		newRole,
 		userID,
 	)
@@ -284,7 +284,7 @@ func (r *repo) Update(ctx context.Context, id int, d *DoctorRequest) error {
         gmeet_link = $9,
         working_days = $10,
         working_hours = $11,
-        updated_at = NOW()
+        updated_at = NOW()  // <-- Pastikan ini ada
     WHERE id = $12`
 
 	result, err := r.db.ExecContext(ctx, query,
