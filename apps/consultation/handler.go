@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"petdoc/internal/infrastructure/middleware"
 
@@ -30,16 +31,26 @@ func NewHandler(service Service) *Handler {
 // @Param pet_age formData integer true "Umur Hewan"
 // @Param disease_description formData string true "Deskripsi Penyakit"
 // @Param consultation_date formData string true "Tanggal Konsultasi (YYYY-MM-DD)"
-// @Param start_time formData string true "Waktu Mulai (HH:MM:SSZ)"
-// @Param end_time formData string true "Waktu Selesai (HH:MM:SSZ)"
+// @Param start_time formData string true "Waktu Mulai (format: HH:MM:SS, contoh: 14:00:00)"
+// @Param end_time formData string true "Waktu Selesai (format: HH:MM:SS, contoh: 14:30:00)"
 // @Param payment_proof formData string true "Bukti Pembayaran (Base64)"
 // @Success 201 {object} ConsultationResponse
 // @Failure 400 {object} map[string]string
 // @Router /consultations [post]
 func (h *Handler) CreateConsultation(c *gin.Context) {
 	var req CreateRequest
+
+	// Bind request
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validasi format waktu
+	if !validateTimeFormat(req.StartTime) || !validateTimeFormat(req.EndTime) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "format waktu harus HH:MM (contoh: 14:00)",
+		})
 		return
 	}
 
@@ -49,6 +60,7 @@ func (h *Handler) CreateConsultation(c *gin.Context) {
 		return
 	}
 
+	// Proses bisnis
 	res, err := h.service.CreateConsultation(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(getErrorCode(err), gin.H{"error": err.Error()})
@@ -104,4 +116,10 @@ func getErrorCode(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+// Fungsi helper untuk validasi format HH:MM
+func validateTimeFormat(timeStr string) bool {
+	_, err := time.Parse("15:04", timeStr)
+	return err == nil
 }

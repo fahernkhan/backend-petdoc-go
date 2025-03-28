@@ -1,12 +1,13 @@
 package consultation
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"petdoc/internal/infrastructure/cloudinary"
 	"time"
 )
@@ -32,45 +33,73 @@ func NewService(repo Repository, cloudinary cloudinary.Service, logger *slog.Log
 
 func (s *consultationService) CreateConsultation(ctx context.Context, req CreateRequest) (ConsultationResponse, error) {
 	// 1. Upload payment proof
-	// Buka file
+	// 1. Buka file
 	file, err := req.PaymentProof.Open()
 	if err != nil {
 		return ConsultationResponse{}, err
 	}
 	defer file.Close()
 
-	// Baca file ke byte
+	// 2. Baca file ke byte (untuk validasi MIME type)
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
 		return ConsultationResponse{}, err
 	}
 
-	// Konversi ke base64
-	base64String := base64.StdEncoding.EncodeToString(fileBytes)
+	// 3. Validasi MIME Type di sini <--- TEMPATKAN DI SINI
+	allowedTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/webp": true,
+	}
+	mimeType := http.DetectContentType(fileBytes)
+	if !allowedTypes[mimeType] {
+		return ConsultationResponse{}, errors.New("hanya menerima file JPEG/PNG")
+	}
 
-	// Upload ke Cloudinary
+	// 4. Konversi ke data URI
+	// base64String := base64.StdEncoding.EncodeToString(fileBytes)
+	// dataURI := fmt.Sprintf("data:%s;base64,%s", mimeType, base64String)
+	// 4. Buat reader dari byte yang sudah dibaca
+	fileReader := bytes.NewReader(fileBytes) // ✅ Reset otomatis ke awal
+
+	// 5. Upload ke Cloudinary
 	paymentURL, err := s.cloudinary.Upload(ctx, cloudinary.UploadParams{
-		File:     base64String,
+		File:     fileReader,
 		Folder:   "payment_proofs",
 		PublicID: fmt.Sprintf("payment_%d_%d", req.UserID, time.Now().Unix()),
 	})
+	if err != nil {
+		// Tambahkan logging detail
+		s.logger.Error("Gagal upload Cloudinary",
+			"error", err,
+			"user_id", req.UserID,
+			"file_size", len(fileBytes),
+		)
+		return ConsultationResponse{}, fmt.Errorf("gagal upload bukti bayar: %w", err)
+	}
 	// 2. Parse waktu
-	startTime, endTime, err := s.parseTimes(req.ConsultationDate, req.StartTime, req.EndTime)
+	startTimeUTC, endTimeUTC, err := s.parseTimes(req.ConsultationDate, req.StartTime, req.EndTime)
 	if err != nil {
 		return ConsultationResponse{}, err
 	}
 	//cek waktu
 	fmt.Println("Server Time Now:", time.Now().Format(time.RFC3339))
-	fmt.Println("Start Time Parsed:", startTime)
-	fmt.Println("End Time Parsed:", endTime)
+	fmt.Println("Start Time Parsed:", startTimeUTC)
+	fmt.Println("End Time Parsed:", endTimeUTC)
 	fmt.Println("Current Time:", time.Now())
 	// 3. Validasi waktu
-	if err := s.validateTimes(startTime, endTime); err != nil {
+	if err := s.validateTimes(startTimeUTC, endTimeUTC); err != nil {
 		return ConsultationResponse{}, err
 	}
 
+	// Konversi ke WIB untuk response
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	startTimeWIB := startTimeUTC.In(loc).Format("2006-01-02 15:04:05")
+	endTimeWIB := endTimeUTC.In(loc).Format("2006-01-02 15:04:05")
+
 	// 4. Cek ketersediaan dokter
-	available, err := s.repo.CheckDoctorAvailability(ctx, req.DoctorID, startTime, endTime)
+	available, err := s.repo.CheckDoctorAvailability(ctx, req.DoctorID, startTimeUTC, endTimeUTC)
 	if err != nil || !available {
 		return ConsultationResponse{}, ErrDoctorNotAvailable
 	}
@@ -82,7 +111,10 @@ func (s *consultationService) CreateConsultation(ctx context.Context, req Create
 	}
 
 	// 6. Buat objek konsultasi
-	consultationDate, _ := time.Parse("2006-01-02", req.ConsultationDate)
+	// Konversi ke format response
+	consultationDateStr := req.ConsultationDate // Sudah dalam format YYYY-MM-DD
+	startTimeUTCStr := startTimeUTC.Format(time.RFC3339)
+	endTimeUTCStr := endTimeUTC.Format(time.RFC3339)
 	cons := ConsultationResponse{
 		UserID:             req.UserID,
 		DoctorID:           req.DoctorID,
@@ -90,9 +122,11 @@ func (s *consultationService) CreateConsultation(ctx context.Context, req Create
 		PetName:            req.PetName,
 		PetAge:             req.PetAge,
 		DiseaseDescription: req.DiseaseDescription,
-		ConsultationDate:   consultationDate,
-		StartTime:          startTime,
-		EndTime:            endTime,
+		ConsultationDate:   consultationDateStr,
+		StartTimeUTC:       startTimeUTCStr,
+		EndTimeUTC:         endTimeUTCStr,
+		StartTimeWIB:       startTimeWIB,
+		EndTimeWIB:         endTimeWIB,
 		PaymentProof:       paymentURL,
 	}
 
@@ -124,33 +158,85 @@ func (s *consultationService) GetConsultations(ctx context.Context, userID, page
 
 // Helper functions
 func (s *consultationService) parseTimes(date, start, end string) (time.Time, time.Time, error) {
-	// Gabungkan tanggal dengan waktu
-	startFull := fmt.Sprintf("%sT%s", date, start) // "2024-03-28T14:00:00+07:00"
-	endFull := fmt.Sprintf("%sT%s", date, end)     // "2024-03-28T15:00:00+07:00"
+	loc, _ := time.LoadLocation("Asia/Jakarta")
 
-	layout := "2006-01-02T15:04:05Z07:00" // Format dengan timezone
+	// Format yang diharapkan
+	dateLayout := "2006-01-02"
+	timeLayout := "15:04"
 
-	startTime, err := time.Parse(layout, startFull)
+	// Parse tanggal
+	consultationDate, err := time.ParseInLocation(dateLayout, date, loc)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid consultation date: %v", err)
+	}
+
+	// Parse waktu mulai
+	startTime, err := time.ParseInLocation(timeLayout, start, loc)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid start time: %v", err)
 	}
 
-	endTime, err := time.Parse(layout, endFull)
+	// Parse waktu selesai
+	endTime, err := time.ParseInLocation(timeLayout, end, loc)
 	if err != nil {
 		return time.Time{}, time.Time{}, fmt.Errorf("invalid end time: %v", err)
 	}
 
-	return startTime.UTC(), endTime.UTC(), nil
-}
-func (s *consultationService) validateTimes(start, end time.Time) error {
-	now := time.Now().UTC() // Gunakan UTC untuk konsistensi
+	// Gabungkan tanggal dan waktu
+	startCombined := time.Date(
+		consultationDate.Year(),
+		consultationDate.Month(),
+		consultationDate.Day(),
+		startTime.Hour(),
+		startTime.Minute(),
+		0, // Second
+		0, // Nanosecond
+		loc,
+	).UTC()
 
+	endCombined := time.Date(
+		consultationDate.Year(),
+		consultationDate.Month(),
+		consultationDate.Day(),
+		endTime.Hour(),
+		endTime.Minute(),
+		0,
+		0,
+		loc,
+	).UTC()
+
+	return startCombined, endCombined, nil
+}
+
+func (s *consultationService) validateTimes(start, end time.Time) error {
+	now := time.Now().UTC()
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+
+	// 1. Tidak boleh di masa lalu
 	if start.Before(now) {
 		return ErrConsultationPastDate
 	}
 
-	if end.Sub(start).Minutes() < 30 {
+	// 2. Durasi minimal 30 menit
+	if end.Sub(start) < 30*time.Minute {
 		return errors.New("durasi minimal 30 menit")
+	}
+
+	// 3. End time harus setelah start time
+	if !end.After(start) {
+		return errors.New("end_time harus setelah start_time")
+	}
+
+	// 4. Validasi jam kerja 08:00-20:00 WIB
+	startWIB := start.In(loc)
+	endWIB := end.In(loc)
+
+	if startWIB.Hour() < 8 || startWIB.Hour() >= 20 {
+		return errors.New("jam mulai harus antara 08:00 - 20:00 WIB")
+	}
+
+	if endWIB.Hour() < 8 || endWIB.Hour() > 20 {
+		return errors.New("jam selesai harus antara 08:00 - 20:00 WIB")
 	}
 
 	return nil

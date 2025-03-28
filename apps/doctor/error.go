@@ -7,16 +7,17 @@ import (
 )
 
 var (
-	ErrDoctorNotFound      = errors.New("doctor not found")
-	ErrInvalidDoctorData   = errors.New("invalid doctor data")
-	ErrDatabaseOperation   = errors.New("database operation failed")
-	ErrUnauthorizedAccess  = errors.New("unauthorized access")
-	ErrInvalidWorkingDays  = errors.New("invalid working days format")
-	ErrInvalidWorkingHours = errors.New("invalid working hours format")
-	ErrFailedUpdateRole    = errors.New("failed to update user role")
-	ErrUserNotAllowed      = errors.New("user is not allowed to become doctor")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrDuplicateEntry      = errors.New("duplicate entry")
+	ErrDoctorNotFound        = errors.New("doctor not found")
+	ErrInvalidDoctorData     = errors.New("invalid doctor data")
+	ErrDatabaseOperation     = errors.New("database operation failed")
+	ErrUnauthorizedAccess    = errors.New("unauthorized access")
+	ErrInvalidWorkingDays    = errors.New("invalid working days format")
+	ErrInvalidWorkingHours   = errors.New("invalid working hours format")
+	ErrFailedUpdateRole      = errors.New("failed to update user role")
+	ErrUserNotAllowed        = errors.New("user is not allowed to become doctor")
+	ErrUserNotFound          = errors.New("user not found")
+	ErrDuplicateEntry        = errors.New("duplicate entry")
+	ErrInvalidRoleTransition = errors.New("invalid role transition")
 )
 
 type ErrorResponse struct {
@@ -54,6 +55,18 @@ func MapError(err error) ErrorResponse {
 			Code:    http.StatusInternalServerError,
 			Message: "Database error",
 			Details: "Unexpected database operation failure",
+		}
+	case errors.Is(err, ErrDoctorNotFound):
+		return ErrorResponse{
+			Code:    http.StatusNotFound,
+			Message: "Doctor not found",
+			Details: "The specified doctor does not exist",
+		}
+	case errors.Is(err, ErrInvalidRoleTransition):
+		return ErrorResponse{
+			Code:    http.StatusBadRequest,
+			Message: "Invalid role transition",
+			Details: "Cannot revert role for non-doctor user",
 		}
 	default:
 		return ErrorResponse{

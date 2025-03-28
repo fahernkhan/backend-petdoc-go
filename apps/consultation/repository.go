@@ -23,13 +23,24 @@ func NewRepository(db *sql.DB) Repository {
 }
 
 func (r *consultationRepo) CreateConsultation(ctx context.Context, cons *ConsultationResponse) error {
+	// Parse string ke time.Time
+	startTime, err := time.Parse(time.RFC3339, cons.StartTimeUTC)
+	if err != nil {
+		return fmt.Errorf("invalid start_time format: %w", err)
+	}
+
+	endTime, err := time.Parse(time.RFC3339, cons.EndTimeUTC)
+	if err != nil {
+		return fmt.Errorf("invalid end_time format: %w", err)
+	}
+
 	query := `
-	INSERT INTO consultations (
-		user_id, doctor_id, pet_type, pet_name, pet_age,
-		disease_description, consultation_date, start_time,
-		end_time, payment_proof
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	RETURNING id, created_at`
+    INSERT INTO consultations (
+        user_id, doctor_id, pet_type, pet_name, pet_age,
+        disease_description, consultation_date, start_time,
+        end_time, payment_proof
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    RETURNING id, created_at`
 
 	return r.db.QueryRowContext(ctx, query,
 		cons.UserID,
@@ -39,8 +50,8 @@ func (r *consultationRepo) CreateConsultation(ctx context.Context, cons *Consult
 		cons.PetAge,
 		cons.DiseaseDescription,
 		cons.ConsultationDate,
-		cons.StartTime,
-		cons.EndTime,
+		startTime, // Gunakan time.Time
+		endTime,   // Gunakan time.Time
 		cons.PaymentProof,
 	).Scan(&cons.ID, &cons.CreatedAt)
 }
@@ -65,6 +76,8 @@ func (r *consultationRepo) GetConsultations(ctx context.Context, userID, page, p
 	var consultations []ConsultationResponse
 	for rows.Next() {
 		var c ConsultationResponse
+		var startTime, endTime time.Time
+
 		err := rows.Scan(
 			&c.ID,
 			&c.UserID,
@@ -74,14 +87,22 @@ func (r *consultationRepo) GetConsultations(ctx context.Context, userID, page, p
 			&c.PetAge,
 			&c.DiseaseDescription,
 			&c.ConsultationDate,
-			&c.StartTime,
-			&c.EndTime,
+			&startTime, // Baca sebagai time.Time
+			&endTime,   // Baca sebagai time.Time
 			&c.PaymentProof,
 			&c.CreatedAt,
 		)
 		if err != nil {
 			return nil, 0, err
 		}
+
+		// Konversi ke format response
+		loc, _ := time.LoadLocation("Asia/Jakarta")
+		c.StartTimeUTC = startTime.UTC().Format(time.RFC3339)
+		c.EndTimeUTC = endTime.UTC().Format(time.RFC3339)
+		c.StartTimeWIB = startTime.In(loc).Format("2006-01-02 15:04:05")
+		c.EndTimeWIB = endTime.In(loc).Format("2006-01-02 15:04:05")
+
 		consultations = append(consultations, c)
 	}
 

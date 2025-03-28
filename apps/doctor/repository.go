@@ -19,6 +19,7 @@ type Repository interface {
 	GetAll(ctx context.Context, page, limit int) ([]DoctorResponse, int, error)
 	Update(ctx context.Context, id int, doctor *DoctorRequest) error
 	Delete(ctx context.Context, id int) error
+	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int) error
 }
 
 type repo struct {
@@ -317,6 +318,22 @@ func (r *repo) Update(ctx context.Context, id int, d *DoctorRequest) error {
 func (r *repo) Delete(ctx context.Context, id int) error {
 	query := `DELETE FROM doctors WHERE id = $1`
 	result, err := r.db.ExecContext(ctx, query, id)
+
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrDoctorNotFound
+	}
+
+	return nil
+}
+
+func (r *repo) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int) error {
+	query := `DELETE FROM doctors WHERE id = $1`
+	result, err := tx.ExecContext(ctx, query, id)
 
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrDatabaseOperation, err)

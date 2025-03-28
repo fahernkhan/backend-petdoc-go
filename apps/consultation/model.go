@@ -28,12 +28,14 @@ type ConsultationResponse struct {
 	PetName            string    `json:"pet_name"`
 	PetAge             int       `json:"pet_age"`
 	DiseaseDescription string    `json:"disease_description"`
-	ConsultationDate   time.Time `json:"consultation_date"`
-	StartTime          time.Time `json:"start_time"`
-	EndTime            time.Time `json:"end_time"`
+	ConsultationDate   string    `json:"consultation_date"` // Format: "YYYY-MM-DD"
+	StartTimeUTC       string    `json:"start_time_utc"`    // Format RFC3339
+	EndTimeUTC         string    `json:"end_time_utc"`      // Format RFC3339
+	StartTimeWIB       string    `json:"start_time_wib"`    // Format: "2006-01-02 15:04:05"
+	EndTimeWIB         string    `json:"end_time_wib"`      // Format: "2006-01-02 15:04:05"
 	PaymentProof       string    `json:"payment_proof"`
 	CreatedAt          time.Time `json:"created_at"`
-	MeetLink           string    `json:"meet_link"` // Tambahkan ini
+	MeetLink           string    `json:"meet_link"`
 }
 
 // Untuk Pagination

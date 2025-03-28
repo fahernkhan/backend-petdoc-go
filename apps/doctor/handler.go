@@ -147,15 +147,19 @@ func (h *Handler) UpdateDoctor(c *gin.Context) {
 func (h *Handler) DeleteDoctor(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, MapError(ErrInvalidDoctorData))
+		response.Error(c, http.StatusBadRequest, ErrInvalidDoctorData, nil)
 		return
 	}
 
 	if err := h.service.DeleteDoctor(c.Request.Context(), id); err != nil {
-		response := MapError(err)
-		c.JSON(response.Code, response)
+		errResp := MapError(err)
+		response.Error(c, errResp.Code, err, gin.H{"details": errResp.Details})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	// Kembalikan 200 OK dengan pesan sukses
+	response.Success(c, http.StatusOK, gin.H{
+		"success": true,
+		"message": "Doctor deleted successfully",
+	})
 }

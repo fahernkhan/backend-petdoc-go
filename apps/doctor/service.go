@@ -185,14 +185,51 @@ func (s *service) UpdateDoctor(ctx context.Context, id int, req DoctorRequest) (
 }
 
 // DeleteDoctor implementation
+// service.go
 func (s *service) DeleteDoctor(ctx context.Context, id int) error {
-	if id <= 0 {
-		return ErrInvalidDoctorData
+	// Mulai transaksi
+	tx, err := s.repo.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Dapatkan data dokter untuk ambil UserID
+	// 1. Ambil data dokter
+	doctor, err := s.repo.GetByIDWithTx(ctx, tx, id)
+	if err != nil {
+		return fmt.Errorf("doctor not found: %w", err)
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
-		s.logger.Error("Failed to delete doctor", "id", id, "error", err)
-		return err
+	// Dapatkan role user saat ini
+	// 2. Cek role user
+	currentRole, err := s.repo.GetUserRole(ctx, tx, doctor.UserID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// User sudah dihapus, lanjut hapus dokter tanpa ubah role
+			s.logger.Warn("user not found, proceeding with doctor deletion", "user_id", doctor.UserID)
+		} else {
+			return fmt.Errorf("failed to get user role: %w", err)
+		}
+	} else {
+		// Ubah role kembali ke 'user' hanya jika saat ini 'doctor'
+		// 3. Revert role jika masih 'doctor'
+		if currentRole == "doctor" {
+			if err := s.repo.UpdateUserRole(ctx, tx, doctor.UserID, "user"); err != nil {
+				return fmt.Errorf("failed to revert user role: %w", err)
+			}
+		}
+	}
+
+	// Hapus dokter
+	// 4. Hapus dokter
+	if err := s.repo.DeleteWithTx(ctx, tx, id); err != nil {
+		return fmt.Errorf("failed to delete doctor: %w", err)
+	}
+
+	// Commit transaksi
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit failed: %w", err)
 	}
 
 	return nil
