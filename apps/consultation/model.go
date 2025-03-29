@@ -46,3 +46,13 @@ type PaginationResponse struct {
 	TotalItems int64                  `json:"total_items"`
 	TotalPages int                    `json:"total_pages"`
 }
+
+type DoctorSchedule struct {
+	GMeetLink    string
+	Price        float64
+	WorkingDays  []string
+	WorkingHours struct {
+		Start string
+		End   string
+	}
+}

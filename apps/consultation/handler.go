@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"petdoc/internal/infrastructure/middleware"
@@ -112,6 +113,10 @@ func getErrorCode(err error) int {
 	case errors.Is(err, ErrDoctorNotAvailable):
 		return http.StatusConflict
 	case errors.Is(err, ErrConsultationPastDate):
+		return http.StatusBadRequest
+	case strings.Contains(err.Error(), "dokter tidak tersedia pada"):
+		return http.StatusBadRequest
+	case strings.Contains(err.Error(), "jam kerja dokter"):
 		return http.StatusBadRequest
 	default:
 		return http.StatusInternalServerError

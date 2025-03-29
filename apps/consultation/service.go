@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"petdoc/internal/infrastructure/cloudinary"
+	"strings"
 	"time"
 )
 
@@ -88,27 +89,54 @@ func (s *consultationService) CreateConsultation(ctx context.Context, req Create
 	fmt.Println("Start Time Parsed:", startTimeUTC)
 	fmt.Println("End Time Parsed:", endTimeUTC)
 	fmt.Println("Current Time:", time.Now())
-	// 3. Validasi waktu
-	if err := s.validateTimes(startTimeUTC, endTimeUTC); err != nil {
+	//
+	// 3. Validasi waktu dasar
+	if err := s.validateBasicTimes(startTimeUTC, endTimeUTC); err != nil {
 		return ConsultationResponse{}, err
 	}
+
+	// // Cek apakah dokter exists
+	// // 4. Cek eksistensi dokter
+	// exists, err := s.repo.DoctorExists(ctx, req.DoctorID)
+	// if err != nil || !exists {
+	// 	return ConsultationResponse{}, ErrDoctorNotFound
+	// }
 
 	// Konversi ke WIB untuk response
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	startTimeWIB := startTimeUTC.In(loc).Format("2006-01-02 15:04:05")
 	endTimeWIB := endTimeUTC.In(loc).Format("2006-01-02 15:04:05")
 
-	// 4. Cek ketersediaan dokter
+	// 4. Cek eksistensi dokter
+	exists, err := s.repo.DoctorExists(ctx, req.DoctorID)
+	if err != nil || !exists {
+		return ConsultationResponse{}, ErrDoctorNotFound
+	}
+
+	// 5. Ambil jadwal dokter
+	doctorSchedule, err := s.repo.GetDoctorDetails(ctx, req.DoctorID)
+	if err != nil {
+		return ConsultationResponse{}, ErrDoctorNotFound
+	}
+
+	// 6. Validasi jadwal dokter
+	if err := s.validateDoctorSchedule(startTimeUTC, endTimeUTC, doctorSchedule); err != nil {
+		return ConsultationResponse{}, err
+	}
+
+	// 7. Cek ketersediaan dokter
 	available, err := s.repo.CheckDoctorAvailability(ctx, req.DoctorID, startTimeUTC, endTimeUTC)
 	if err != nil || !available {
 		return ConsultationResponse{}, ErrDoctorNotAvailable
 	}
 
-	// 5. Dapatkan detail dokter
-	gmeetLink, _, err := s.repo.GetDoctorDetails(ctx, req.DoctorID)
-	if err != nil {
-		return ConsultationResponse{}, ErrDoctorNotFound
+	// 8. Cek konflik ganda (dokter dan user)
+	available, err = s.repo.CheckAvailability(ctx, req.DoctorID, req.UserID, startTimeUTC, endTimeUTC)
+	if err != nil || !available {
+		return ConsultationResponse{}, ErrDuplicateBooking
 	}
+
+	// ... [bagian pembuatan objek konsultasi]
 
 	// 6. Buat objek konsultasi
 	// Konversi ke format response
@@ -136,7 +164,7 @@ func (s *consultationService) CreateConsultation(ctx context.Context, req Create
 		return ConsultationResponse{}, errors.New("gagal menyimpan konsultasi")
 	}
 
-	cons.MeetLink = gmeetLink
+	cons.MeetLink = doctorSchedule.GMeetLink // Pakai GMeetLink dari doctorSchedule
 	return cons, nil
 }
 
@@ -237,6 +265,74 @@ func (s *consultationService) validateTimes(start, end time.Time) error {
 
 	if endWIB.Hour() < 8 || endWIB.Hour() > 20 {
 		return errors.New("jam selesai harus antara 08:00 - 20:00 WIB")
+	}
+
+	return nil
+}
+
+// Tambahkan fungsi helper di bawah service.go
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if strings.EqualFold(s, item) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *consultationService) validateBasicTimes(start, end time.Time) error {
+	now := time.Now().UTC()
+
+	// 1. Tidak boleh di masa lalu
+	if start.Before(now) {
+		return ErrConsultationPastDate
+	}
+
+	// 2. Durasi minimal 30 menit
+	if end.Sub(start) < 30*time.Minute {
+		return errors.New("durasi minimal 30 menit")
+	}
+
+	// 3. End time harus setelah start time
+	if !end.After(start) {
+		return errors.New("end_time harus setelah start_time")
+	}
+
+	return nil
+}
+
+func (s *consultationService) validateDoctorSchedule(start, end time.Time, schedule DoctorSchedule) error {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	startWIB := start.In(loc)
+	endWIB := end.In(loc)
+
+	// Validasi hari kerja
+	dayOfWeek := startWIB.Weekday().String()
+	if !contains(schedule.WorkingDays, dayOfWeek) {
+		return fmt.Errorf("dokter tidak tersedia pada %s", dayOfWeek)
+	}
+
+	// Validasi format jam kerja dokter
+	if _, err := time.Parse("15:04", schedule.WorkingHours.Start); err != nil {
+		return fmt.Errorf("format jam mulai dokter tidak valid: %w", err)
+	}
+
+	if _, err := time.Parse("15:04", schedule.WorkingHours.End); err != nil {
+		return fmt.Errorf("format jam selesai dokter tidak valid: %w", err)
+	}
+
+	// Ekstrak jam konsultasi
+	consultStart := fmt.Sprintf("%02d:%02d", startWIB.Hour(), startWIB.Minute())
+	consultEnd := fmt.Sprintf("%02d:%02d", endWIB.Hour(), endWIB.Minute())
+
+	// Validasi jam mulai
+	if consultStart < schedule.WorkingHours.Start {
+		return fmt.Errorf("jam mulai harus setelah %s", schedule.WorkingHours.Start)
+	}
+
+	// Validasi jam selesai
+	if consultEnd > schedule.WorkingHours.End {
+		return fmt.Errorf("jam selesai harus sebelum %s", schedule.WorkingHours.End)
 	}
 
 	return nil
