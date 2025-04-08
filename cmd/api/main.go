@@ -8,6 +8,7 @@ import (
 	"petdoc/apps/article"
 	"petdoc/apps/auth/login"
 	"petdoc/apps/auth/register"
+	"petdoc/apps/clinic"
 	"petdoc/apps/consultation"
 	"petdoc/apps/doctor"
 	"petdoc/apps/user"
@@ -103,6 +104,8 @@ func main() {
 	user.InitUserModule(router, db)
 	// Inisialisasi modul article
 	article.InitRoutes(router, db, cloudinaryService, jwtService)
+	// Inisialisasi modul clinic
+	clinic.InitRoutes(router, db, cloudinaryService, jwtService)
 
 	// Inisialisasi modul konsultasi dengan middleware auth
 	consultation.InitRoutes(router, db, cloudinaryService, jwtService) // Tambahkan ini

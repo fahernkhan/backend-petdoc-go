@@ -108,8 +108,8 @@ func validateWorkingHours(req DoctorRequest) error {
 // validateWorkingDays
 func validateWorkingDays(days []string) error {
 	validDays := map[string]bool{
-		"Senin": true, "Selasa": true, "Rabu": true,
-		"Kamis": true, "Jumat": true, "Sabtu": true, "Minggu": true,
+		"Monday": true, "Tuesday": true, "Wednesday": true,
+		"Thursday": true, "Friday": true, "Saturday": true, "Sunday": true,
 	}
 
 	for _, day := range days {
