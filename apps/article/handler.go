@@ -73,16 +73,18 @@ func (h *Handler) GetArticle(c *gin.Context) {
 // @Summary Get all articles
 // @Tags Articles
 // @Produce json
+// @Param search query string false "Search query"
 // @Param page query int false "Page number" default(1)
 // @Param page_size query int false "Items per page" default(10)
 // @Success 200 {object} PaginationResponse
 // @Failure 400 {object} map[string]string
 // @Router /articles [get]
 func (h *Handler) GetAllArticles(c *gin.Context) {
+	searchQuery := c.Query("search")
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	articles, err := h.service.GetAllArticles(c.Request.Context(), page, pageSize)
+	articles, err := h.service.GetAllArticles(c.Request.Context(), searchQuery, page, pageSize)
 	if err != nil {
 		handleError(c, err)
 		return

@@ -265,11 +265,19 @@ func (r *repo) GetAll(ctx context.Context, page, limit int) ([]DoctorResponse, i
 
 // Update implementation
 func (r *repo) Update(ctx context.Context, id int, d *DoctorRequest) error {
-	workingDays, _ := json.Marshal(d.WorkingDays)
-	workingHours, _ := json.Marshal(map[string]string{
+	// Handle error saat marshal
+	workingDays, err := json.Marshal(d.WorkingDays)
+	if err != nil {
+		return fmt.Errorf("failed to marshal working days: %w", err)
+	}
+
+	workingHours, err := json.Marshal(map[string]string{
 		"start": d.WorkingHoursStart,
 		"end":   d.WorkingHoursEnd,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal working hours: %w", err)
+	}
 
 	query := `
     UPDATE doctors 
@@ -284,7 +292,7 @@ func (r *repo) Update(ctx context.Context, id int, d *DoctorRequest) error {
         gmeet_link = $9,
         working_days = $10,
         working_hours = $11,
-        updated_at = NOW()  // <-- Pastikan ini ada
+        updated_at = NOW()
     WHERE id = $12`
 
 	result, err := r.db.ExecContext(ctx, query,

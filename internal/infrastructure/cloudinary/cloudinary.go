@@ -12,6 +12,7 @@ import (
 
 type Service interface {
 	Upload(ctx context.Context, params UploadParams) (string, error)
+	Delete(ctx context.Context, publicID string) error
 }
 
 type service struct {
@@ -56,6 +57,13 @@ func (s *service) Upload(ctx context.Context, params UploadParams) (string, erro
 	// Log hasil sukses
 	fmt.Printf("[DEBUG] Upload Success - URL: %s\n", result.SecureURL)
 	return result.SecureURL, nil
+}
+
+func (s *service) Delete(ctx context.Context, publicID string) error {
+	_, err := s.cli.Upload.Destroy(ctx, uploader.DestroyParams{
+		PublicID: publicID,
+	})
+	return err
 }
 
 // package cloudinary

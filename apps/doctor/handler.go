@@ -24,10 +24,19 @@ func NewHandler(service Service) *Handler {
 // @Param input body DoctorRequest true "Doctor data"
 // @Success 201 {object} DoctorResponse
 // @Router /doctors [post]
+// CreateDoctor godoc
+// @Summary Create new doctor
+// @Tags Doctors
+// @Security BearerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param user_id formData int true "User ID"
+// @Param profile_image formData file true "Profile Image"
+// @Success 201 {object} DoctorResponse
+// @Router /doctors [post]
 func (h *Handler) CreateDoctor(c *gin.Context) {
-	var req DoctorRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// Handle error binding
+	var req CreateRequest
+	if err := c.ShouldBind(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, ErrInvalidDoctorData, gin.H{
 			"details": err.Error(),
 		})
@@ -118,8 +127,8 @@ func (h *Handler) UpdateDoctor(c *gin.Context) {
 		return
 	}
 
-	var req DoctorRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var req UpdateRequest
+	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, MapError(ErrInvalidDoctorData))
 		return
 	}

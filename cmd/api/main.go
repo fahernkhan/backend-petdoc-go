@@ -99,7 +99,7 @@ func main() {
 	// Inisialisasi modul login (autentikasi)
 	login.InitModule(router, db, jwtService, tokenExpiry)
 	// Panggil InitRoutes dengan tokenService(doctor)
-	doctor.InitRoutes(router, db, jwtService)
+	doctor.InitRoutes(router, db, cloudinaryService, jwtService)
 	// Inisialisasi modul user
 	user.InitUserModule(router, db)
 	// Inisialisasi modul article

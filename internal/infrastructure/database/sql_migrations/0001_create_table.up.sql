@@ -29,7 +29,7 @@ CREATE TABLE doctors (
     years_of_experience INT,
     price_per_hour DECIMAL(10, 2) NOT NULL,
     gmeet_link VARCHAR(255) NOT NULL,
-    working_days JSONB, -- Contoh: ["Senin", "Rabu", "Jumat"]
+    working_days JSONB, -- Contoh: ["Monday", "Wednesday", "Friday"]
     working_hours JSONB, -- Contoh: { "start": "09:00", "end": "17:00" }
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

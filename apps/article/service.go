@@ -15,7 +15,7 @@ import (
 type Service interface {
 	CreateArticle(ctx context.Context, req CreateRequest, userID int) (Response, error)
 	GetArticle(ctx context.Context, id int) (Response, error)
-	GetAllArticles(ctx context.Context, page, pageSize int) (PaginationResponse, error)
+	GetAllArticles(ctx context.Context, query string, page, pageSize int) (PaginationResponse, error)
 	UpdateArticle(ctx context.Context, req UpdateRequest, id, userID int) (Response, error)
 	DeleteArticle(ctx context.Context, id, userID int) error
 	SearchArticles(ctx context.Context, query string, page, pageSize int) (PaginationResponse, error)
@@ -67,12 +67,21 @@ func (s *articleService) GetArticle(ctx context.Context, id int) (Response, erro
 	return article, nil
 }
 
-func (s *articleService) GetAllArticles(ctx context.Context, page, pageSize int) (PaginationResponse, error) {
+func (s *articleService) GetAllArticles(ctx context.Context, query string, page, pageSize int) (PaginationResponse, error) {
 	if page < 1 || pageSize < 1 {
 		return PaginationResponse{}, ErrPaginationInvalid
 	}
 
-	articles, total, err := s.repo.GetAll(ctx, page, pageSize)
+	var articles []Response
+	var total int64
+	var err error
+
+	if query != "" {
+		articles, total, err = s.repo.Search(ctx, query, page, pageSize)
+	} else {
+		articles, total, err = s.repo.GetAll(ctx, page, pageSize)
+	}
+
 	if err != nil {
 		s.logger.Error("Failed to get articles", "error", err)
 		return PaginationResponse{}, err

@@ -18,6 +18,9 @@ var (
 	ErrUserNotFound          = errors.New("user not found")
 	ErrDuplicateEntry        = errors.New("duplicate entry")
 	ErrInvalidRoleTransition = errors.New("invalid role transition")
+	ErrImageUploadFailed     = errors.New("failed to upload image")
+	ErrInvalidImageFormat    = errors.New("invalid image format")
+	ErrFileTooLarge          = errors.New("file size exceeded 5MB")
 )
 
 type ErrorResponse struct {
@@ -33,46 +36,22 @@ func (e ErrorResponse) Error() string {
 func MapError(err error) ErrorResponse {
 	switch {
 	case errors.Is(err, ErrUserNotFound):
-		return ErrorResponse{
-			Code:    http.StatusNotFound,
-			Message: "User not found",
-			Details: "The specified user does not exist",
-		}
+		return ErrorResponse{http.StatusNotFound, "User not found", "The specified user does not exist"}
 	case errors.Is(err, ErrUserNotAllowed):
-		return ErrorResponse{
-			Code:    http.StatusBadRequest,
-			Message: "Invalid role transition",
-			Details: "User must have 'user' role to become doctor",
-		}
+		return ErrorResponse{http.StatusBadRequest, "Invalid role transition", "User must have 'user' role to become doctor"}
 	case errors.Is(err, ErrDuplicateEntry):
-		return ErrorResponse{
-			Code:    http.StatusConflict,
-			Message: "Duplicate entry",
-			Details: "Doctor already exists for this user",
-		}
+		return ErrorResponse{http.StatusConflict, "Duplicate entry", "Doctor already exists for this user"}
 	case errors.Is(err, ErrDatabaseOperation):
-		return ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Database error",
-			Details: "Unexpected database operation failure",
-		}
+		return ErrorResponse{http.StatusInternalServerError, "Database error", "Unexpected database operation failure"}
 	case errors.Is(err, ErrDoctorNotFound):
-		return ErrorResponse{
-			Code:    http.StatusNotFound,
-			Message: "Doctor not found",
-			Details: "The specified doctor does not exist",
-		}
+		return ErrorResponse{http.StatusNotFound, "Doctor not found", "The specified doctor does not exist"}
 	case errors.Is(err, ErrInvalidRoleTransition):
-		return ErrorResponse{
-			Code:    http.StatusBadRequest,
-			Message: "Invalid role transition",
-			Details: "Cannot revert role for non-doctor user",
-		}
+		return ErrorResponse{http.StatusBadRequest, "Invalid role transition", "Cannot revert role for non-doctor user"}
+	case errors.Is(err, ErrImageUploadFailed):
+		return ErrorResponse{http.StatusInternalServerError, "Image upload failed", "Failed to upload profile image"}
+	case errors.Is(err, ErrInvalidImageFormat):
+		return ErrorResponse{http.StatusBadRequest, "Invalid image format", "Allowed formats: JPEG, PNG, WEBP, GIF"}
 	default:
-		return ErrorResponse{
-			Code:    http.StatusInternalServerError,
-			Message: "Internal server error",
-			Details: "Unexpected error occurred",
-		}
+		return ErrorResponse{http.StatusInternalServerError, "Internal server error", "Unexpected error occurred"}
 	}
 }
