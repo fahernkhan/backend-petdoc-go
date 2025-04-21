@@ -13,4 +13,8 @@ var (
 	ErrInvalidWorkingDay    = errors.New("hari kerja tidak valid")
 	ErrOutsideWorkingHours  = errors.New("di luar jam kerja dokter")
 	ErrDuplicateBooking     = errors.New("sudah ada booking pada waktu tersebut")
+	ErrUnauthorizedAccess   = errors.New("akses tidak diizinkan")
+	ErrInvalidID            = errors.New("ID tidak valid")
+	ErrForbidden            = errors.New("akses ditolak")
+	ErrInvalidRole          = errors.New("role tidak valid")
 )

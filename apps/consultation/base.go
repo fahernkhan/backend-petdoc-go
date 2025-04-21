@@ -22,6 +22,8 @@ func InitRoutes(router *gin.Engine, db *sql.DB, cloudinaryService cloudinary.Ser
 	{
 		consultationGroup.POST("", handler.CreateConsultation)
 		consultationGroup.GET("", handler.GetConsultations)
+		consultationGroup.GET("/users", handler.GetConsultationsByUser)     // New
+		consultationGroup.GET("/doctors", handler.GetConsultationsByDoctor) // New
 
 		// Jika ada endpoint khusus admin
 		adminRoutes := consultationGroup.Group("")

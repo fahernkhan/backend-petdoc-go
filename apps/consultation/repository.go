@@ -15,6 +15,8 @@ type Repository interface {
 	GetDoctorDetails(ctx context.Context, doctorID int) (DoctorSchedule, error)
 	CheckAvailability(ctx context.Context, doctorID, userID int, start, end time.Time) (bool, error)
 	DoctorExists(ctx context.Context, doctorID int) (bool, error)
+	GetConsultationsByUser(ctx context.Context, userID, page, pageSize int) ([]ConsultationResponse, int64, error)
+	GetConsultationsByDoctor(ctx context.Context, doctorID, page, pageSize int) ([]ConsultationResponse, int64, error)
 }
 
 type consultationRepo struct {
@@ -194,4 +196,74 @@ func (r *consultationRepo) DoctorExists(ctx context.Context, doctorID int) (bool
 	query := `SELECT EXISTS(SELECT 1 FROM doctors WHERE id = $1)`
 	err := r.db.QueryRowContext(ctx, query, doctorID).Scan(&exists)
 	return exists, err
+}
+
+// Get consultaions by id user dan doctor yang digabungkan
+
+func (r *consultationRepo) getConsultationsByField(ctx context.Context, field string, value, page, pageSize int) ([]ConsultationResponse, int64, error) {
+	offset := (page - 1) * pageSize
+
+	query := fmt.Sprintf(`
+        SELECT id, user_id, doctor_id, pet_type, pet_name, pet_age,
+               disease_description, consultation_date, start_time,
+               end_time, payment_proof, created_at
+        FROM consultations
+        WHERE %s = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3`, field)
+
+	rows, err := r.db.QueryContext(ctx, query, value, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var consultations []ConsultationResponse
+	for rows.Next() {
+		var c ConsultationResponse
+		var startTime, endTime time.Time
+
+		err := rows.Scan(
+			&c.ID,
+			&c.UserID,
+			&c.DoctorID,
+			&c.PetType,
+			&c.PetName,
+			&c.PetAge,
+			&c.DiseaseDescription,
+			&c.ConsultationDate,
+			&startTime,
+			&endTime,
+			&c.PaymentProof,
+			&c.CreatedAt,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		// Konversi waktu
+		loc, _ := time.LoadLocation("Asia/Jakarta")
+		c.StartTimeUTC = startTime.UTC().Format(time.RFC3339)
+		c.EndTimeUTC = endTime.UTC().Format(time.RFC3339)
+		c.StartTimeWIB = startTime.In(loc).Format("2006-01-02 15:04:05")
+		c.EndTimeWIB = endTime.In(loc).Format("2006-01-02 15:04:05")
+
+		consultations = append(consultations, c)
+	}
+
+	// Total items
+	var total int64
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM consultations WHERE %s = $1", field)
+	err = r.db.QueryRowContext(ctx, countQuery, value).Scan(&total)
+
+	return consultations, total, err
+}
+
+// implememtasi dari api gabungan diatas
+func (r *consultationRepo) GetConsultationsByUser(ctx context.Context, userID, page, pageSize int) ([]ConsultationResponse, int64, error) {
+	return r.getConsultationsByField(ctx, "user_id", userID, page, pageSize)
+}
+
+func (r *consultationRepo) GetConsultationsByDoctor(ctx context.Context, doctorID, page, pageSize int) ([]ConsultationResponse, int64, error) {
+	return r.getConsultationsByField(ctx, "doctor_id", doctorID, page, pageSize)
 }

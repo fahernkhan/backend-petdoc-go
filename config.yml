@@ -3,7 +3,7 @@ app:
   port: "8080"
   secret_key: "iniSangatSecret"
   token_type: "Bearer"
-  expire_time: 6000
+  expire_time: 6000000000000
 
 db:
   host: "localhost"

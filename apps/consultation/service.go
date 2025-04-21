@@ -16,6 +16,8 @@ import (
 type Service interface {
 	CreateConsultation(ctx context.Context, req CreateRequest) (ConsultationResponse, error)
 	GetConsultations(ctx context.Context, userID, page, pageSize int) (PaginationResponse, error)
+	GetConsultationsByUser(ctx context.Context, userID, page, pageSize int) (PaginationResponse, error)
+	GetConsultationsByDoctor(ctx context.Context, doctorID, page, pageSize int) (PaginationResponse, error)
 }
 
 type consultationService struct {
@@ -33,6 +35,7 @@ func NewService(repo Repository, cloudinary cloudinary.Service, logger *slog.Log
 }
 
 func (s *consultationService) CreateConsultation(ctx context.Context, req CreateRequest) (ConsultationResponse, error) {
+	startTime := time.Now()
 	// 1. Upload payment proof
 	// 1. Buka file
 	file, err := req.PaymentProof.Open()
@@ -70,6 +73,9 @@ func (s *consultationService) CreateConsultation(ctx context.Context, req Create
 		Folder:   "payment_proofs",
 		PublicID: fmt.Sprintf("payment_%d_%d", req.UserID, time.Now().Unix()),
 	})
+	// log
+	s.logger.Info("Cloudinary upload completed", "duration", time.Since(startTime).Seconds())
+
 	if err != nil {
 		// Tambahkan logging detail
 		s.logger.Error("Gagal upload Cloudinary",
@@ -182,6 +188,51 @@ func (s *consultationService) GetConsultations(ctx context.Context, userID, page
 		TotalItems: total,
 		TotalPages: totalPages,
 	}, nil
+}
+
+// get consultations by user id and doctor id
+func (s *consultationService) GetConsultationsByUser(ctx context.Context, userID, page, pageSize int) (PaginationResponse, error) {
+	if userID < 1 {
+		return PaginationResponse{}, ErrInvalidID
+	}
+
+	consults, total, err := s.repo.GetConsultationsByUser(ctx, userID, page, pageSize)
+	if err != nil {
+		return PaginationResponse{}, err
+	}
+
+	return createPaginationResponse(consults, page, pageSize, total), nil
+}
+
+func (s *consultationService) GetConsultationsByDoctor(ctx context.Context, doctorID, page, pageSize int) (PaginationResponse, error) {
+	if doctorID < 1 {
+		return PaginationResponse{}, ErrInvalidID
+	}
+
+	// Validasi dokter exists
+	exists, err := s.repo.DoctorExists(ctx, doctorID)
+	if err != nil || !exists {
+		return PaginationResponse{}, ErrDoctorNotFound
+	}
+
+	consults, total, err := s.repo.GetConsultationsByDoctor(ctx, doctorID, page, pageSize)
+	if err != nil {
+		return PaginationResponse{}, err
+	}
+
+	return createPaginationResponse(consults, page, pageSize, total), nil
+}
+
+// Helper untuk membuat response pagination
+func createPaginationResponse(consults []ConsultationResponse, page, pageSize int, total int64) PaginationResponse {
+	totalPages := (int(total) + pageSize - 1) / pageSize
+	return PaginationResponse{
+		Data:       consults,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalItems: total,
+		TotalPages: totalPages,
+	}
 }
 
 // Helper functions

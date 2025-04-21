@@ -106,8 +106,60 @@ func (h *Handler) GetConsultations(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// GetConsultationsByUser godoc
+// @Summary Get consultations by user ID
+// @Tags Konsultasi
+// @Produce json
+// @Param user_id query int true "User ID"
+// @Param page query int false "Halaman" default(1)
+// @Param page_size query int false "Item per halaman" default(10)
+// @Success 200 {object} PaginationResponse
+// @Router /consultations/users [get]
+func (h *Handler) GetConsultationsByUser(c *gin.Context) {
+	// Ambil parameter dari query
+	userID, _ := strconv.Atoi(c.Query("user_id"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	res, err := h.service.GetConsultationsByUser(c.Request.Context(), userID, page, pageSize)
+	if err != nil {
+		c.JSON(getErrorCode(err), gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
+}
+
+// GetConsultationsByDoctor godoc
+// @Summary Get consultations by doctor ID
+// @Tags Konsultasi
+// @Produce json
+// @Param doctor_id query int true "Doctor ID"
+// @Param page query int false "Halaman" default(1)
+// @Param page_size query int false "Item per halaman" default(10)
+// @Success 200 {object} PaginationResponse
+// @Router /consultations/doctors [get]
+func (h *Handler) GetConsultationsByDoctor(c *gin.Context) {
+	// Ambil parameter dari query
+	doctorID, _ := strconv.Atoi(c.Query("doctor_id"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	res, err := h.service.GetConsultationsByDoctor(c.Request.Context(), doctorID, page, pageSize)
+	if err != nil {
+		c.JSON(getErrorCode(err), gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
+}
+
 func getErrorCode(err error) int {
 	switch {
+	case errors.Is(err, ErrUnauthorizedAccess):
+		return http.StatusUnauthorized
+	case errors.Is(err, ErrInvalidID):
+		return http.StatusBadRequest
 	case errors.Is(err, ErrInvalidTimeFormat):
 		return http.StatusBadRequest
 	case errors.Is(err, ErrDoctorNotAvailable):

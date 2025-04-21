@@ -12,7 +12,7 @@ type CreateRequest struct {
 	PetType            string                `form:"pet_type" binding:"required"`
 	PetName            string                `form:"pet_name" binding:"required"`
 	PetAge             int                   `form:"pet_age" binding:"required,min=0,max=30"`
-	DiseaseDescription string                `form:"disease_description" binding:"required,min=10,max=2000"`
+	DiseaseDescription string                `form:"disease_description" binding:"required,min=1,max=2000"`
 	ConsultationDate   string                `form:"consultation_date" binding:"required"` // Format: YYYY-MM-DD
 	StartTime          string                `form:"start_time" binding:"required"`        // Format: 2006-01-02T15:04:05Z
 	EndTime            string                `form:"end_time" binding:"required"`          // Format: 2006-01-02T15:04:05Z
@@ -55,4 +55,12 @@ type DoctorSchedule struct {
 		Start string
 		End   string
 	}
+}
+
+type Filter struct {
+	UserID   int
+	DoctorID int
+	Page     int
+	PageSize int
+	IsAdmin  bool // Tambahkan field untuk cek admin
 }

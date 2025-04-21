@@ -21,3 +21,8 @@ CREATE INDEX idx_doctors_updated_at ON doctors(updated_at);
 CREATE INDEX idx_users_role ON users(role);
 
 CREATE INDEX idx_doctors_updated_at ON doctors(updated_at);
+
+-- Index in consultations
+CREATE INDEX idx_consultations_doctor_time ON consultations (doctor_id, start_time, end_time);
+CREATE INDEX idx_consultations_user_time ON consultations (user_id, start_time, end_time);
+CREATE INDEX idx_consultations_date ON consultations (consultation_date);

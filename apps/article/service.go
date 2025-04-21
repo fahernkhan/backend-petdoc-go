@@ -125,6 +125,13 @@ func (s *articleService) UpdateArticle(ctx context.Context, req UpdateRequest, i
 		}
 		existing.ImageURL = imageURL
 	}
+	//if req.Image != nil {
+	//	imageURL, err := s.uploadImage(ctx, req.Image)
+	//	if err != nil {
+	//		return Response{}, err
+	//	}
+	//	existing.ImageURL = imageURL
+	//}
 
 	if err := s.repo.Update(ctx, &existing); err != nil {
 		s.logger.Error("Failed to update article", "id", id, "error", err)
