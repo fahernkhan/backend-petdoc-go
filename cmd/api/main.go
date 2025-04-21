@@ -5,6 +5,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"petdoc/apps/admin"
 	"petdoc/apps/article"
 	"petdoc/apps/auth/login"
 	"petdoc/apps/auth/register"
@@ -110,6 +111,8 @@ func main() {
 	// Inisialisasi modul konsultasi dengan middleware auth
 	consultation.InitRoutes(router, db, cloudinaryService, jwtService) // Tambahkan ini
 
+	//admin rote
+	admin.InitAdminRoutes(router, db, jwtService)
 	// Start server dengan port dari konfigurasi
 	appPort := config.GetConfig().App.Port
 	slog.Info("Starting server", slog.String("port", appPort))
