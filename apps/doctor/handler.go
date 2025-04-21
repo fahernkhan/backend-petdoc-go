@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"petdoc/internal/infrastructure/response"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -55,32 +56,55 @@ func (h *Handler) CreateDoctor(c *gin.Context) {
 	response.Success(c, http.StatusCreated, doctor)
 }
 
-// @Summary Get all doctors with pagination
+// ListDoctors godoc
+// @Summary Get all doctors with pagination and search
 // @Tags Doctors
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param limit query int false "Items per page" default(10)
-// @Success 200 {object} []DoctorResponse
+// @Param search query string false "Search query"
+// @Success 200 {object} PaginatedDoctorResponse
 // @Router /doctors [get]
 func (h *Handler) ListDoctors(c *gin.Context) {
 	var pagination Pagination
 	if err := c.ShouldBindQuery(&pagination); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.Error(c, http.StatusBadRequest, ErrInvalidDoctorData, gin.H{
+			"details": err.Error(),
+		})
 		return
 	}
 
-	doctors, total, err := h.service.ListDoctors(c.Request.Context(), pagination)
+	doctors, total, err := h.service.ListDoctors(
+		c.Request.Context(),
+		pagination,
+		strings.TrimSpace(pagination.Search),
+	)
+
 	if err != nil {
 		response := MapError(err)
 		c.JSON(response.Code, response)
 		return
 	}
 
+	totalPages := (total + pagination.Limit - 1) / pagination.Limit
+	fromItem := (pagination.Page-1)*pagination.Limit + 1
+	toItem := pagination.Page * pagination.Limit
+	if toItem > total {
+		toItem = total
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"data":  doctors,
-		"total": total,
-		"page":  pagination.Page,
-		"limit": pagination.Limit,
+		"success":    true,
+		"statusCode": http.StatusOK,
+		"data":       doctors,
+		"pagination": gin.H{
+			"page":       pagination.Page,
+			"limit":      pagination.Limit,
+			"totalItems": total,
+			"totalPages": totalPages,
+			"fromItem":   fromItem,
+			"toItem":     toItem,
+		},
 	})
 }
 

@@ -19,7 +19,7 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int, filter string) ([]UserResponse, error) {
+func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int, search string) ([]UserResponse, error) {
 	baseQuery := `
         SELECT 
             id, 
@@ -34,9 +34,9 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int, fil
 	args := []interface{}{limit, offset}
 	whereClause := ""
 
-	if filter != "" {
+	if search != "" {
 		whereClause = " WHERE (full_name ILIKE $3 OR email ILIKE $3 OR username ILIKE $3)"
-		args = append(args, "%"+filter+"%")
+		args = append(args, "%"+search+"%")
 	}
 
 	query := baseQuery + whereClause + " ORDER BY id ASC LIMIT $1 OFFSET $2"
@@ -71,13 +71,13 @@ func (r *userRepository) GetAllUsers(ctx context.Context, offset, limit int, fil
 	return users, nil
 }
 
-func (r *userRepository) CountAllUsers(ctx context.Context, filter string) (int, error) {
+func (r *userRepository) CountAllUsers(ctx context.Context, search string) (int, error) {
 	baseQuery := `SELECT COUNT(*) FROM users`
 	args := []interface{}{}
 
-	if filter != "" {
+	if search != "" {
 		baseQuery += " WHERE (full_name ILIKE $1 OR email ILIKE $1 OR username ILIKE $1)"
-		args = append(args, "%"+filter+"%")
+		args = append(args, "%"+search+"%")
 	}
 
 	var count int

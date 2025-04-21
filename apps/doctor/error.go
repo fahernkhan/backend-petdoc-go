@@ -21,6 +21,7 @@ var (
 	ErrImageUploadFailed     = errors.New("failed to upload image")
 	ErrInvalidImageFormat    = errors.New("invalid image format")
 	ErrFileTooLarge          = errors.New("file size exceeded 5MB")
+	ErrInvalidSearchParam    = errors.New("invalid search parameter")
 )
 
 type ErrorResponse struct {

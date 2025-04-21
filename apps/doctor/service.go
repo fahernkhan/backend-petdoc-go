@@ -19,7 +19,7 @@ import (
 type Service interface {
 	CreateDoctor(ctx context.Context, req CreateRequest) (Response, error)
 	GetDoctor(ctx context.Context, id int) (Response, error)
-	ListDoctors(ctx context.Context, pagination Pagination) ([]Response, int, error)
+	ListDoctors(ctx context.Context, pagination Pagination, search string) ([]Response, int, error)
 	UpdateDoctor(ctx context.Context, id int, req UpdateRequest) (Response, error)
 	DeleteDoctor(ctx context.Context, id int) error
 }
@@ -212,18 +212,28 @@ func (s *service) GetDoctor(ctx context.Context, id int) (Response, error) {
 }
 
 // ListDoctors implementation
-func (s *service) ListDoctors(ctx context.Context, pagination Pagination) ([]Response, int, error) {
+func (s *service) ListDoctors(ctx context.Context, pagination Pagination, search string) ([]Response, int, error) {
 	if pagination.Page < 1 || pagination.Limit < 1 {
 		return nil, 0, ErrInvalidDoctorData
 	}
 
-	doctorResponses, total, err := s.repo.GetAll(ctx, pagination.Page, pagination.Limit)
+	var (
+		doctorResponses []DoctorResponse
+		total           int
+		err             error
+	)
+
+	if search != "" {
+		doctorResponses, total, err = s.repo.Search(ctx, search, pagination.Page, pagination.Limit)
+	} else {
+		doctorResponses, total, err = s.repo.GetAll(ctx, pagination.Page, pagination.Limit)
+	}
+
 	if err != nil {
 		s.logger.Error("Failed to list doctors", "error", err)
 		return nil, 0, err
 	}
 
-	// Convert semua DoctorResponse ke Response
 	responses := make([]Response, len(doctorResponses))
 	for i, dr := range doctorResponses {
 		responses[i] = convertToServiceResponse(dr)
@@ -231,6 +241,26 @@ func (s *service) ListDoctors(ctx context.Context, pagination Pagination) ([]Res
 
 	return responses, total, nil
 }
+
+//func (s *service) ListDoctors(ctx context.Context, pagination Pagination) ([]Response, int, error) {
+//	if pagination.Page < 1 || pagination.Limit < 1 {
+//		return nil, 0, ErrInvalidDoctorData
+//	}
+//
+//	doctorResponses, total, err := s.repo.GetAll(ctx, pagination.Page, pagination.Limit)
+//	if err != nil {
+//		s.logger.Error("Failed to list doctors", "error", err)
+//		return nil, 0, err
+//	}
+//
+//	// Convert semua DoctorResponse ke Response
+//	responses := make([]Response, len(doctorResponses))
+//	for i, dr := range doctorResponses {
+//		responses[i] = convertToServiceResponse(dr)
+//	}
+//
+//	return responses, total, nil
+//}
 
 // UpdateDoctor implementation
 func (s *service) UpdateDoctor(ctx context.Context, id int, req UpdateRequest) (Response, error) {

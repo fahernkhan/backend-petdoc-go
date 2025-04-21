@@ -52,7 +52,7 @@ func (s *userService) GetPaginatedUsers(ctx context.Context, req PaginationReque
 	// Goroutine untuk mengambil data pengguna dari database
 	go func() {
 		slog.Info("Fetching users from database", "offset", offset, "limit", req.PageSize)
-		users, err := s.repo.GetAllUsers(ctx, offset, req.PageSize, req.Filter)
+		users, err := s.repo.GetAllUsers(ctx, offset, req.PageSize, req.Search)
 		errChan <- err    // Kirim error ke channel jika ada
 		dataChan <- users // Kirim data ke channel jika berhasil
 	}()
@@ -60,7 +60,7 @@ func (s *userService) GetPaginatedUsers(ctx context.Context, req PaginationReque
 	// Goroutine untuk menghitung total pengguna di database
 	go func() {
 		slog.Info("Counting total users in database")
-		count, err := s.repo.CountAllUsers(ctx, req.Filter)
+		count, err := s.repo.CountAllUsers(ctx, req.Search)
 		errChan <- err     // Kirim error ke channel jika ada
 		countChan <- count // Kirim jumlah total pengguna
 	}()

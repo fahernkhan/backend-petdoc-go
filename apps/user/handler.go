@@ -17,6 +17,17 @@ func NewUserHandler(service UserService) *UserHandler {
 	return &UserHandler{service: service}
 }
 
+// Update komentar Swagger
+// GetAllUsers godoc
+// @Summary Get all users with pagination
+// @Tags Users
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param pageSize query int false "Items per page" default(10)
+// @Param search query string false "Search query"
+// @Success 200 {object} PaginatedResponse
+// @Failure 400 {object} map[string]string
+// @Router /users [get]
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	const op = "user.handler.GetAllUsers"
 	logger := slog.With("operation", op)

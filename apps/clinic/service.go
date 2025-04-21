@@ -15,7 +15,7 @@ import (
 type Service interface {
 	CreateClinic(ctx context.Context, req CreateRequest, userID int) (ClinicResponse, error)
 	GetClinic(ctx context.Context, id int) (ClinicResponse, error)
-	GetAllClinics(ctx context.Context, page, pageSize int) (PaginationResponse, error)
+	GetAllClinics(ctx context.Context, query string, page, pageSize int) (PaginationResponse, error)
 	UpdateClinic(ctx context.Context, req UpdateRequest, id, userID int) (ClinicResponse, error)
 	DeleteClinic(ctx context.Context, id, userID int) error
 	SearchClinics(ctx context.Context, query string, page, pageSize int) (PaginationResponse, error)
@@ -67,12 +67,21 @@ func (s *clinicService) GetClinic(ctx context.Context, id int) (ClinicResponse, 
 	return clinic, nil
 }
 
-func (s *clinicService) GetAllClinics(ctx context.Context, page, pageSize int) (PaginationResponse, error) {
+func (s *clinicService) GetAllClinics(ctx context.Context, query string, page, pageSize int) (PaginationResponse, error) {
 	if page < 1 || pageSize < 1 {
 		return PaginationResponse{}, ErrPaginationInvalid
 	}
 
-	clinics, total, err := s.repo.GetAll(ctx, page, pageSize)
+	var clinics []ClinicResponse
+	var total int64
+	var err error
+
+	if query != "" {
+		clinics, total, err = s.repo.Search(ctx, query, page, pageSize)
+	} else {
+		clinics, total, err = s.repo.GetAll(ctx, page, pageSize)
+	}
+
 	if err != nil {
 		s.logger.Error("Failed to get clinics", "error", err)
 		return PaginationResponse{}, err

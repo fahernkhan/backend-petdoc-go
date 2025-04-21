@@ -20,6 +20,7 @@ type Repository interface {
 	Update(ctx context.Context, id int, doctor *DoctorRequest) error
 	Delete(ctx context.Context, id int) error
 	DeleteWithTx(ctx context.Context, tx *sql.Tx, id int) error
+	Search(ctx context.Context, query string, page, limit int) ([]DoctorResponse, int, error)
 }
 
 type repo struct {
@@ -353,4 +354,76 @@ func (r *repo) DeleteWithTx(ctx context.Context, tx *sql.Tx, id int) error {
 	}
 
 	return nil
+}
+
+// Implementasi repo
+func (r *repo) Search(ctx context.Context, query string, page, limit int) ([]DoctorResponse, int, error) {
+	offset := (page - 1) * limit
+	searchTerm := "%" + strings.ToLower(query) + "%"
+
+	// Get total count
+	var total int
+	countQuery := `SELECT COUNT(*) FROM doctors 
+        WHERE LOWER(full_name) LIKE $1 
+        OR LOWER(specialist_at) LIKE $1 
+        OR LOWER(hospital_name) LIKE $1`
+	err := r.db.QueryRowContext(ctx, countQuery, searchTerm).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
+	}
+
+	// Get paginated data
+	queryStr := `
+        SELECT id, user_id, full_name, last_education, specialist_at, profile_image, 
+            birth_date, hospital_name, years_of_experience, price_per_hour, 
+            gmeet_link, working_days, working_hours, created_at, updated_at 
+        FROM doctors
+        WHERE LOWER(full_name) LIKE $1 
+            OR LOWER(specialist_at) LIKE $1 
+            OR LOWER(hospital_name) LIKE $1
+        ORDER BY id DESC 
+        LIMIT $2 OFFSET $3`
+
+	rows, err := r.db.QueryContext(ctx, queryStr, searchTerm, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
+	}
+	defer rows.Close()
+
+	var doctors []DoctorResponse
+	for rows.Next() {
+		var d DoctorResponse
+		var workingDays []byte
+		var workingHours []byte
+		var birthDate time.Time
+
+		err := rows.Scan(
+			&d.ID,
+			&d.UserID,
+			&d.FullName,
+			&d.LastEducation,
+			&d.SpecialistAt,
+			&d.ProfileImage,
+			&birthDate,
+			&d.HospitalName,
+			&d.YearsOfExperience,
+			&d.PricePerHour,
+			&d.GmeetLink,
+			&workingDays,
+			&workingHours,
+			&d.CreatedAt,
+			&d.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, 0, fmt.Errorf("%w: %v", ErrDatabaseOperation, err)
+		}
+
+		json.Unmarshal(workingDays, &d.WorkingDays)
+		json.Unmarshal(workingHours, &d.WorkingHours)
+		d.BirthDate = birthDate.Format("2006-01-02")
+		doctors = append(doctors, d)
+	}
+
+	return doctors, total, nil
 }
